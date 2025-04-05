@@ -1,10 +1,8 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Weekly Phenotype Trends", layout="wide")
-
 st.title("📊 Weekly Prevalence of Staphylococcus aureus Phenotypes")
 
 @st.cache_data
@@ -15,32 +13,53 @@ def load_data():
     df = df.dropna(subset=["Date"])
     df["Week"] = df["Date"].dt.to_period("W").apply(lambda r: r.start_time)
     df = df[df["Week"] <= pd.to_datetime("2024-06-10")]
+    
+    # Ajout de 'Other'
     df_weekly = df.groupby("Week").agg({
         "MRSA": "sum",
         "VRSA": "sum",
         "Wild": "sum",
+        "Other": "sum",
         "Total": "sum"
     }).reset_index()
+    
     return df_weekly
 
 df_weekly = load_data()
 
-phenotypes = ["MRSA", "VRSA", "Wild"]
-selected = st.multiselect("Select phenotypes to display", phenotypes, default=phenotypes)
+# 🎯 Ajouter un filtre de date (semaine)
+min_date = df_weekly["Week"].min()
+max_date = df_weekly["Week"].max()
 
+start_week, end_week = st.slider(
+    "Sélectionner une plage de semaines",
+    min_value=min_date,
+    max_value=max_date,
+    value=(min_date, max_date),
+    format="YYYY-MM-DD"
+)
+
+# Filtrer par semaine
+filtered_df = df_weekly[(df_weekly["Week"] >= start_week) & (df_weekly["Week"] <= end_week)]
+
+# 🎯 Choix des phénotypes à afficher
+phenotypes = ["MRSA", "VRSA", "Wild", "Other"]
+selected = st.multiselect("Phénotypes à afficher", phenotypes, default=phenotypes)
+
+# 📈 Affichage Plotly
 fig = go.Figure()
 for pheno in selected:
     fig.add_trace(go.Scatter(
-        x=df_weekly["Week"],
-        y=df_weekly[pheno],
+        x=filtered_df["Week"],
+        y=filtered_df[pheno],
         mode="lines+markers",
         name=pheno
     ))
 
 fig.update_layout(
-    title="Weekly Phenotype Distribution (up to June 10, 2024)",
-    xaxis_title="Week",
-    yaxis_title="Number of Cases",
+    title="Évolution hebdomadaire des phénotypes (jusqu'au 10 juin 2024)",
+    xaxis_title="Semaine",
+    yaxis_title="Nombre de cas",
     hovermode="x unified"
 )
 
