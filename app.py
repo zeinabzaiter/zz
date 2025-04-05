@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,14 +13,15 @@ def load_data():
     df["Date"] = pd.to_datetime(df["Month"] + " 2024", format="%B %Y", errors='coerce')
     df = df.dropna(subset=["Date"])
     df["Week"] = df["Date"].dt.to_period("W").apply(lambda r: r.start_time)
+    df["Week"] = pd.to_datetime(df["Week"])  # pour compatibilité slider
+
     df = df[df["Week"] <= pd.to_datetime("2024-06-10")]
     
-    # Ajout de 'Other'
     df_weekly = df.groupby("Week").agg({
         "MRSA": "sum",
         "VRSA": "sum",
         "Wild": "sum",
-        "others": "sum",
+        "others": "sum",  # ✅ nom exact corrigé
         "Total": "sum"
     }).reset_index()
     
@@ -27,9 +29,9 @@ def load_data():
 
 df_weekly = load_data()
 
-# 🎯 Ajouter un filtre de date (semaine)
-min_date = df_weekly["Week"].min()
-max_date = df_weekly["Week"].max()
+# 🎯 Filtre plage de semaines
+min_date = df_weekly["Week"].min().to_pydatetime()
+max_date = df_weekly["Week"].max().to_pydatetime()
 
 start_week, end_week = st.slider(
     "Sélectionner une plage de semaines",
@@ -39,14 +41,13 @@ start_week, end_week = st.slider(
     format="YYYY-MM-DD"
 )
 
-# Filtrer par semaine
 filtered_df = df_weekly[(df_weekly["Week"] >= start_week) & (df_weekly["Week"] <= end_week)]
 
-# 🎯 Choix des phénotypes à afficher
-phenotypes = ["MRSA", "VRSA", "Wild", "Other"]
+# 🎯 Sélection dynamique des phénotypes
+phenotypes = ["MRSA", "VRSA", "Wild", "others"]
 selected = st.multiselect("Phénotypes à afficher", phenotypes, default=phenotypes)
 
-# 📈 Affichage Plotly
+# 📈 Tracé du graphique
 fig = go.Figure()
 for pheno in selected:
     fig.add_trace(go.Scatter(
