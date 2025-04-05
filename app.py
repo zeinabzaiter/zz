@@ -1,5 +1,4 @@
-# Créer un nouveau fichier app.py avec ajout du graphique de prévalence en pourcentage
-full_app_with_percentage = """
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
