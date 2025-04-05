@@ -1,6 +1,13 @@
+# Ajout d'un bouton d'export PDF avec explication incluse (en texte)
+from textwrap import dedent
+
+pdf_export_code = """
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from fpdf import FPDF
+import base64
+import io
 
 st.set_page_config(page_title="Staph Dashboard", layout="wide")
 
@@ -48,6 +55,55 @@ with tab2:
     if df_weekly["MRSA"].max() > threshold:
         st.warning("⚠️ Alerte globale : pic MRSA détecté au-delà du seuil !")
 
+    st.markdown("---")
+    st.subheader("📌 Analyse des alertes")
+    st.write(f"**MRSA** : Moyenne = `{mean_mrsa:.2f}`, Écart-type = `{std_mrsa:.2f}`")
+    st.write(f"**Seuil d’alerte MRSA** (moyenne + 2×écart-type) = `{threshold:.2f}`")
+    st.write(f"**Maximum observé de MRSA** = `{df_weekly['MRSA'].max()}`")
+    st.write(f"**Total VRSA** détecté = `{df_weekly['VRSA'].sum()}`")
+
+    explanation_text = f\"\"\"
+    MRSA : Moyenne = {mean_mrsa:.2f}
+    MRSA : Écart-type = {std_mrsa:.2f}
+    Seuil d’alerte MRSA = {threshold:.2f}
+    Max observé MRSA = {df_weekly['MRSA'].max()}
+    Total VRSA détecté = {df_weekly['VRSA'].sum()}
+    \"\"\"
+
+    if df_weekly["VRSA"].sum() < 1 and df_weekly["MRSA"].max() <= threshold:
+        conclusion = "✅ Aucune alerte n’a été déclenchée : les cas de MRSA sont restés sous le seuil, et aucun VRSA n’a été détecté."
+        st.success(conclusion)
+        explanation_text += "\\n\\n" + conclusion
+
+    # Export PDF
+    st.markdown("---")
+    st.subheader("📄 Exporter l'analyse en PDF")
+
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("Arial", "B", 12)
+            self.cell(0, 10, "Analyse des alertes - Staph Dashboard", ln=True, align="C")
+
+        def chapter_title(self, title):
+            self.set_font("Arial", "B", 12)
+            self.cell(0, 10, title, ln=True, align="L")
+
+        def chapter_body(self, body):
+            self.set_font("Arial", "", 12)
+            self.multi_cell(0, 10, body)
+
+    if st.button("📤 Générer le PDF"):
+        pdf = PDF()
+        pdf.add_page()
+        pdf.chapter_title("Résumé des statistiques")
+        pdf.chapter_body(explanation_text)
+
+        pdf_output = io.BytesIO()
+        pdf.output(pdf_output)
+        b64 = base64.b64encode(pdf_output.getvalue()).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="rapport_staph_alertes.pdf">📥 Télécharger le PDF</a>'
+        st.markdown(href, unsafe_allow_html=True)
+
 with tab3:
     st.header("📈 Temporal Trends")
     st.line_chart(df_weekly.set_index("Week")[["MRSA", "VRSA", "Wild", "others"]])
@@ -76,7 +132,6 @@ with tab4:
     phenotypes = ["MRSA", "VRSA", "Wild", "others"]
     selected = st.multiselect("Phénotypes à afficher", phenotypes, default=phenotypes)
 
-    # Graphique en nombre de cas
     fig = go.Figure()
     for pheno in selected:
         fig.add_trace(go.Scatter(
@@ -93,7 +148,6 @@ with tab4:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Graphique en pourcentage
     st.subheader("📊 Prévalence des phénotypes en pourcentage (%)")
     for pheno in selected:
         filtered_df[f"{pheno}_pct"] = (filtered_df[pheno] / filtered_df["Total"]) * 100
@@ -113,3 +167,11 @@ with tab4:
         hovermode="x unified"
     )
     st.plotly_chart(fig_pct, use_container_width=True)
+"""
+
+# Save to file
+pdf_button_path = "/mnt/data/app_with_pdf_export.py"
+with open(pdf_button_path, "w", encoding="utf-8") as f:
+    f.write(dedent(pdf_export_code))
+
+pdf_button_path
