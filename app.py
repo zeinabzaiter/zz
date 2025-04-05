@@ -19,7 +19,7 @@ def load_data():
         "MRSA": "sum",
         "VRSA": "sum",
         "Wild": "sum",
-        "Others": "sum",
+        "others": "sum",
         "Total": "sum"
     }).reset_index()
     
