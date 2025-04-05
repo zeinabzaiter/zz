@@ -1,46 +1,47 @@
+
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Staphylococcus Phenotypes Dashboard", layout="wide")
-st.title("🦠 Staphylococcus Phenotype Surveillance Dashboard")
+st.set_page_config(page_title="Weekly Phenotype Trends", layout="wide")
 
-# Upload Excel file
-uploaded_file = st.file_uploader("Upload the Excel file with phenotype counts (no daptomycin)", type=["xlsx"])
+st.title("📊 Weekly Prevalence of Staphylococcus aureus Phenotypes")
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
-    df['Month'] = df['Month'].astype(str)
+@st.cache_data
+def load_data():
+    df = pd.read_excel("data/staph aureus phenotypes R.xlsx")
+    df = df[~df["Month"].isin(["Total", "Prevalence %"])]
+    df["Date"] = pd.to_datetime(df["Month"] + " 2024", format="%B %Y", errors='coerce')
+    df = df.dropna(subset=["Date"])
+    df["Week"] = df["Date"].dt.to_period("W").apply(lambda r: r.start_time)
+    df = df[df["Week"] <= pd.to_datetime("2024-06-10")]
+    df_weekly = df.groupby("Week").agg({
+        "MRSA": "sum",
+        "VRSA": "sum",
+        "Wild": "sum",
+        "Total": "sum"
+    }).reset_index()
+    return df_weekly
 
-    st.subheader("📊 Monthly Distribution of Phenotypes")
-    
-    # Select phenotypes to show
-    phenotypes = ['Wild', 'MRSA', 'VRSA', 'Other']
-    selected = st.multiselect("Select phenotypes to display:", phenotypes, default=phenotypes)
+df_weekly = load_data()
 
-    # Plot count evolution
-    fig_count = px.line(df, x='Month', y=selected, markers=True,
-                        labels={"value": "Number of Isolates", "variable": "Phenotype"},
-                        title="Phenotype Counts per Month")
-    st.plotly_chart(fig_count, use_container_width=True)
+phenotypes = ["MRSA", "VRSA", "Wild"]
+selected = st.multiselect("Select phenotypes to display", phenotypes, default=phenotypes)
 
-    # Prevalence calculation
-    prevalence_df = df.copy()
-    for col in phenotypes:
-        prevalence_df[col] = (prevalence_df[col] / prevalence_df['Total']) * 100
+fig = go.Figure()
+for pheno in selected:
+    fig.add_trace(go.Scatter(
+        x=df_weekly["Week"],
+        y=df_weekly[pheno],
+        mode="lines+markers",
+        name=pheno
+    ))
 
-    fig_prev = px.line(prevalence_df, x='Month', y=selected, markers=True,
-                       labels={"value": "Prevalence (%)", "variable": "Phenotype"},
-                       title="Phenotype Prevalence per Month")
-    st.plotly_chart(fig_prev, use_container_width=True)
+fig.update_layout(
+    title="Weekly Phenotype Distribution (up to June 10, 2024)",
+    xaxis_title="Week",
+    yaxis_title="Number of Cases",
+    hovermode="x unified"
+)
 
-    # Show data table
-    with st.expander("📁 View Data Table"):
-        st.dataframe(df)
-
-    # Download CSV
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download Data as CSV", data=csv, file_name="phenotypes_by_month.csv", mime="text/csv")
-
-else:
-    st.info("👆 Please upload an Excel file to begin.")
+st.plotly_chart(fig, use_container_width=True)
