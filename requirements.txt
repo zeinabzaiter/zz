@@ -1,13 +1,4 @@
-
-# Création d'un fichier requirements.txt avec les bibliothèques nécessaires
-requirements = """streamlit
+streamlit
 pandas
-openpyxl
 plotly
-"""
-
-requirements_path = "/mnt/data/requirements.txt"
-with open(requirements_path, "w") as f:
-    f.write(requirements)
-
-requirements_path
+openpyxl
