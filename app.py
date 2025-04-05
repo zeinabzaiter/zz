@@ -1,7 +1,3 @@
-# Ajout d'un bouton d'export PDF avec explication incluse (en texte)
-from textwrap import dedent
-
-pdf_export_code = """
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -62,20 +58,19 @@ with tab2:
     st.write(f"**Maximum observé de MRSA** = `{df_weekly['MRSA'].max()}`")
     st.write(f"**Total VRSA** détecté = `{df_weekly['VRSA'].sum()}`")
 
-    explanation_text = f\"\"\"
+    explanation_text = f"""
     MRSA : Moyenne = {mean_mrsa:.2f}
     MRSA : Écart-type = {std_mrsa:.2f}
     Seuil d’alerte MRSA = {threshold:.2f}
     Max observé MRSA = {df_weekly['MRSA'].max()}
     Total VRSA détecté = {df_weekly['VRSA'].sum()}
-    \"\"\"
+    """
 
     if df_weekly["VRSA"].sum() < 1 and df_weekly["MRSA"].max() <= threshold:
         conclusion = "✅ Aucune alerte n’a été déclenchée : les cas de MRSA sont restés sous le seuil, et aucun VRSA n’a été détecté."
         st.success(conclusion)
-        explanation_text += "\\n\\n" + conclusion
+        explanation_text += "\n\n" + conclusion
 
-    # Export PDF
     st.markdown("---")
     st.subheader("📄 Exporter l'analyse en PDF")
 
@@ -92,7 +87,7 @@ with tab2:
             self.set_font("Arial", "", 12)
             self.multi_cell(0, 10, body)
 
-    if st.button("📤 Générer le PDF"):
+    if st.button("📄 Générer le PDF"):
         pdf = PDF()
         pdf.add_page()
         pdf.chapter_title("Résumé des statistiques")
@@ -101,7 +96,7 @@ with tab2:
         pdf_output = io.BytesIO()
         pdf.output(pdf_output)
         b64 = base64.b64encode(pdf_output.getvalue()).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="rapport_staph_alertes.pdf">📥 Télécharger le PDF</a>'
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="rapport_staph_alertes.pdf">📅 Télécharger le PDF</a>'
         st.markdown(href, unsafe_allow_html=True)
 
 with tab3:
@@ -109,7 +104,7 @@ with tab3:
     st.line_chart(df_weekly.set_index("Week")[["MRSA", "VRSA", "Wild", "others"]])
 
 with tab4:
-    st.header("🧬 Phenotype Analysis")
+    st.header("🦬 Phenotype Analysis")
 
     min_date = df_weekly["Week"].min().to_pydatetime()
     max_date = df_weekly["Week"].max().to_pydatetime()
@@ -167,11 +162,3 @@ with tab4:
         hovermode="x unified"
     )
     st.plotly_chart(fig_pct, use_container_width=True)
-"""
-
-# Save to file
-pdf_button_path = "/mnt/data/app_with_pdf_export.py"
-with open(pdf_button_path, "w", encoding="utf-8") as f:
-    f.write(dedent(pdf_export_code))
-
-pdf_button_path
