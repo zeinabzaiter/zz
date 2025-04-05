@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -77,6 +76,7 @@ with tab4:
     phenotypes = ["MRSA", "VRSA", "Wild", "others"]
     selected = st.multiselect("Phénotypes à afficher", phenotypes, default=phenotypes)
 
+    # Graphique en nombre de cas
     fig = go.Figure()
     for pheno in selected:
         fig.add_trace(go.Scatter(
@@ -113,11 +113,3 @@ with tab4:
         hovermode="x unified"
     )
     st.plotly_chart(fig_pct, use_container_width=True)
-"""
-
-# Enregistrement du fichier
-percentage_path = "/mnt/data/app_with_percentage_prevalence.py"
-with open(percentage_path, "w", encoding="utf-8") as f:
-    f.write(full_app_with_percentage)
-
-percentage_path
