@@ -25,15 +25,24 @@ def load_data():
         "Total": "sum"
     }).reset_index()
 
-    return df_weekly
+    df["Month"] = df["Date"].dt.to_period("M").dt.to_timestamp()
+    df_monthly = df.groupby("Month").agg({
+        "MRSA": "sum",
+        "VRSA": "sum",
+        "Wild": "sum",
+        "others": "sum",
+        "Total": "sum"
+    }).reset_index()
 
-df_weekly = load_data()
+    return df_weekly, df_monthly
+
+df_weekly, df_monthly = load_data()
 
 mean_mrsa = df_weekly["MRSA"].mean()
 std_mrsa = df_weekly["MRSA"].std()
 threshold = mean_mrsa + 2 * std_mrsa
 
-tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Key Metrics", "Temporal Trends", "Phenotype Analysis"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "Key Metrics", "Temporal Trends", "Phenotype Analysis", "Monthly Table"])
 
 with tab1:
     st.header("📋 Overview")
@@ -71,51 +80,15 @@ with tab2:
         st.success(conclusion)
         explanation_text += "\n\n" + conclusion
 
-    st.markdown("---")
-    st.subheader("📄 Exporter l'analyse en PDF")
-
-    class PDF(FPDF):
-        def header(self):
-            self.set_font("Arial", "B", 12)
-            self.cell(0, 10, "Analyse des alertes - Staph Dashboard", ln=True, align="C")
-
-        def chapter_title(self, title):
-            self.set_font("Arial", "B", 12)
-            self.cell(0, 10, title, ln=True, align="L")
-
-        def chapter_body(self, body):
-            self.set_font("Arial", "", 12)
-            self.multi_cell(0, 10, body)
-
-    if st.button("📄 Générer le PDF"):
-        pdf = PDF()
-        pdf.add_page()
-        pdf.chapter_title("Résumé des statistiques")
-        pdf.chapter_body(explanation_text)
-
-        pdf_output = io.BytesIO()
-        pdf.output(pdf_output)
-        b64 = base64.b64encode(pdf_output.getvalue()).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="rapport_staph_alertes.pdf">📅 Télécharger le PDF</a>'
-        st.markdown(href, unsafe_allow_html=True)
-
 with tab3:
     st.header("📈 Temporal Trends")
     st.line_chart(df_weekly.set_index("Week")[["MRSA", "VRSA", "Wild", "others"]])
 
 with tab4:
     st.header("🦬 Phenotype Analysis")
-
     min_date = df_weekly["Week"].min().to_pydatetime()
     max_date = df_weekly["Week"].max().to_pydatetime()
-    start_week, end_week = st.slider(
-        "Sélectionner une plage de semaines",
-        min_value=min_date,
-        max_value=max_date,
-        value=(min_date, max_date),
-        format="YYYY-MM-DD"
-    )
-
+    start_week, end_week = st.slider("Sélectionner une plage de semaines", min_value=min_date, max_value=max_date, value=(min_date, max_date), format="YYYY-MM-DD")
     filtered_df = df_weekly[(df_weekly["Week"] >= start_week) & (df_weekly["Week"] <= end_week)]
 
     if filtered_df["VRSA"].sum() >= 1:
@@ -126,39 +99,24 @@ with tab4:
 
     phenotypes = ["MRSA", "VRSA", "Wild", "others"]
     selected = st.multiselect("Phénotypes à afficher", phenotypes, default=phenotypes)
-
     fig = go.Figure()
     for pheno in selected:
-        fig.add_trace(go.Scatter(
-            x=filtered_df["Week"],
-            y=filtered_df[pheno],
-            mode="lines+markers",
-            name=pheno
-        ))
-    fig.update_layout(
-        title="Évolution hebdomadaire des phénotypes sélectionnés",
-        xaxis_title="Semaine",
-        yaxis_title="Nombre de cas",
-        hovermode="x unified"
-    )
+        fig.add_trace(go.Scatter(x=filtered_df["Week"], y=filtered_df[pheno], mode="lines+markers", name=pheno))
+    fig.update_layout(title="Évolution hebdomadaire des phénotypes sélectionnés", xaxis_title="Semaine", yaxis_title="Nombre de cas", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("📊 Prévalence des phénotypes en pourcentage (%)")
+    st.subheader("Prévalence des phénotypes en pourcentage (%)")
     for pheno in selected:
         filtered_df[f"{pheno}_pct"] = (filtered_df[pheno] / filtered_df["Total"]) * 100
-
     fig_pct = go.Figure()
     for pheno in selected:
-        fig_pct.add_trace(go.Scatter(
-            x=filtered_df["Week"],
-            y=filtered_df[f"{pheno}_pct"],
-            mode="lines+markers",
-            name=f"{pheno} (%)"
-        ))
-    fig_pct.update_layout(
-        title="Prévalence en pourcentage des phénotypes",
-        xaxis_title="Semaine",
-        yaxis_title="Pourcentage (%)",
-        hovermode="x unified"
-    )
+        fig_pct.add_trace(go.Scatter(x=filtered_df["Week"], y=filtered_df[f"{pheno}_pct"], mode="lines+markers", name=f"{pheno} (%)"))
+    fig_pct.update_layout(title="Prévalence en pourcentage des phénotypes", xaxis_title="Semaine", yaxis_title="%", hovermode="x unified")
     st.plotly_chart(fig_pct, use_container_width=True)
+
+with tab5:
+    st.header("📊 Tableau Mensuel de Surveillance")
+    df_monthly["Seuil MRSA"] = round(threshold, 2)
+    df_monthly["Alerte"] = df_monthly.apply(lambda row: "🔴 VRSA" if row["VRSA"] > 0 else ("🟠 MRSA" if row["MRSA"] > threshold else "✅ OK"), axis=1)
+    df_monthly_display = df_monthly[["Month", "MRSA", "VRSA", "Wild", "others", "Seuil MRSA", "Alerte"]]
+    st.dataframe(df_monthly_display, use_container_width=True)
